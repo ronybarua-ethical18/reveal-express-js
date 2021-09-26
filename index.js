@@ -1,93 +1,110 @@
 const express = require("express");
-const handle = require("./handle");
-
+const multer = require("multer");
+const path = require("path");
 const app = express();
-const admin = express(); //created sub app for handling admin related api
 
-app.use("/admin", admin);
+app.use(express());
 
-const router = express.Router({
-  caseSensitive: true,
-});
-app.use(router);
+const UPLOAD_FOLDER = "./uploads/";
 
-admin.get("/dashboard", (req, res) => {
-  console.log(admin.mountpath); //root path of admin app
-  res.send("Welcome to admin dashboard");
-});
+//define the storage
+const storage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    callback(null, UPLOAD_FOLDER);
+  },
+  filename: (req, file, callback) => {
+    //file.pdf = file-38743897.pdf
 
-//allows all type of method to get access api
-app.all("/universal", (req, res) => {
-  res.send("I am universal route");
-});
-
-//enable settings of the App
-app.enable("case sensitive routing");
-app.disable("case sensitive routing");
-
-app.param("id", (req, res, next, id) => {
-  const user = {
-    userId: 4,
-    name: "Rocky",
-  };
-  req.userDetails = user;
-  next();
+    const fileExt = path.extname(file.originalname);
+    const fileName =
+      file.originalname
+        .replace(fileExt, "")
+        .toLowerCase()
+        .split(" ")
+        .join("-") +
+      "-" +
+      Date.now();
+    callback(null, fileName + fileExt);
+  },
 });
 
-app.get("/user/:id", (req, res) => {
-  console.log(req.userDetails);
-  res.send("Params done");
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 1000000, //10 MB
+  },
+  fileFilter: (req, file, callback) => {
+    if (file.fieldname === "avatar") {
+      if (
+        file.mimetype === "image/png" ||
+        file.mimetype === "image/jpg" ||
+        file.mimetype === "image/jpeg"
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Only png, jpg, and jpeg file format are allowed"));
+      }
+    } else if (file.fieldname === "doc") {
+      if (file.mimetype === "application/pdf") {
+        callback(null, true);
+      } else {
+        callback(new Error("Only PDF format is allowed"));
+      }
+    }
+  },
 });
 
-//template engine is related to render method
-app.set('view engine', 'ejs')
+//upload a single file
 
-// for making a common api for few different methods
-app.route("/about/mission")
-  .get((req, res) => {
-    // res.send("listening from get method");
-    res.render('pages/about')
-  })
-  .post((req, res) => {
-    res.send("listening from post method");
-  })
-  .put((req, res) => {
-    res.send("listening from put method");
-  })
-  .delete((req, res) => {
-    res.send("listening from delete method");
-  });
+// app.post("/upload", upload.single("avatar"), (req, res) => {
+//   res.send("File Saved");
+// });
 
+//upload multiple files in multiple field
+app.post(
+  "/upload",
+  upload.fields([
+    { name: "avatar", maxCount: 1 },
+    { name: "doc", maxCount: 2 },
+  ]),
+  (req, res) => {
+    console.log(req.files);
+    res.send("File Saved");
+  }
+);
 
+// handle multer related error
 
+app.use((err, req, res, next) => {
+  if (err) {
+    if (err instanceof multer.MulterError) {
+      res.status(500).send("There was a problem with file upload");
+    } else {
+      res.status(500).send(err.message);
+    }
+  } else {
+    res.send("success");
+  }
+});
 
-// app.use(express.json())
-
-// app.use(express.raw())
-
-// app.use(express.text())
-
-// app.use(express.urlencoded())
-
-//make the public folder static
-// app.use(express.static(__dirname + '/public/', {
-//     index: 'home.html'
-// }))
-
-// app.get('/', (req, res) =>{
-//     res.send('This is home page')
+//upload multiple file
+// app.post('/upload', upload.array('avatar', 3), (req, res) =>{
+//   res.send('File Saved')
 // })
 
-// app.locals.title = 'My App'
+//upload multiple files in multiple field
+// app.post('/upload', upload.fields([
+//   {name: 'avatar', maxCount: 1},
+//   {name: 'gallery', maxCount: 2},
+// ]), (req, res) =>{
+//   res.send('File Saved')
+// })
 
-router.get("/", handle); //alternative of app.get
-
-app.post("/", (req, res) => {
-  // console.log(req.body.toString()) for raw function
-  // console.log(req.body)
-  res.send("This is post page");
-});
+//take form data using multer
+// app.post('/upload', upload.none(), (req, res) =>{
+//   res.send('File Saved')
+// })
 
 app.listen(5000, (req, res) => {
-  console.log("listening to port 5000");
+  console.log("listening  from port 5000");
 });
